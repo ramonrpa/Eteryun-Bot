@@ -151,7 +151,7 @@ class Sorteio extends Command {
                         await giveaway.message.delete()
                     } catch (error) { }
                     queue.giveaway.delete(id)
-                    return this.sendEmbed(channel, 'Sucesso', 'Sorteio apago')
+                    return this.sendEmbed(channel, 'Sucesso', 'Sorteio cancelado')
                 } else {
                     return this.sendEmbed(channel, 'Error', 'Sorteio inexistente')
                 }
@@ -206,7 +206,7 @@ class Sorteio extends Command {
             let rules = ''
             do {
                 rules = await this.sendQuestion('Sorteio', '> Digite as regras do sorteio:', channel, author, true)
-            } while ((rules.toLowerCase() == 'pular' || rules == ''))
+            } while (!(rules.toLowerCase() == 'pular' || rules == ''))
 
             let totalWinners
             do {
