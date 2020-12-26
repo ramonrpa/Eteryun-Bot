@@ -12,7 +12,6 @@ module.exports = async function onraw(event) {
         const guild = this.guilds.cache.get(event.d.guild_id)
         const member = guild.members.cache.get(event.d.user_id)
         const channel = this.channels.cache.get(event.d.channel_id)
-        console.log(this.config.channels.sugestions.make.find(item => item == event.d.channel_id))
 
         if (event.d.emoji.name == '🎉') {
             if (queue.giveaway.has(event.d.message_id)) {
