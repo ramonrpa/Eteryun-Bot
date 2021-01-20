@@ -23,6 +23,6 @@ Versão `12.18.4` do nodejs usada.
 
 **Execute**: `npm start`
 
-**Contribuia** e envie um **Pull Request**.
+**Contribua** e envie um **Pull Request**.
 
 **Pronto!!!** 🎉

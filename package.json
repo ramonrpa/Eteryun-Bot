@@ -10,9 +10,13 @@
   "license": "ISC",
   "dependencies": {
     "@discordjs/opus": "^0.3.3",
+    "axios": "^0.21.0",
+    "canvas": "^2.6.1",
     "discord.js": "^12.3.1",
     "ffmpeg": "0.0.4",
     "fluent-ffmpeg": "^2.1.2",
+    "js-levenshtein": "^1.1.6",
+    "minecraft-items": "^0.4.3",
     "moment": "^2.27.0",
     "moment-timezone": "^0.5.31",
     "nodemon": "^2.0.4",
