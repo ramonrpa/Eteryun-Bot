@@ -8,11 +8,13 @@ module.exports = async function onraw(event) {
 
         if (event.d.user_id == this.user.id)
             return
+        
+        const channel = this.channels.cache.get(event.d.channel_id)    
+        if (channel.type == "dm")
+            return
 
         const guild = this.guilds.cache.get(event.d.guild_id)
-        const member = guild.members.cache.get(event.d.user_id)
-        const channel = this.channels.cache.get(event.d.channel_id)
-        console.log(this.config.channels.sugestions.make.find(item => item == event.d.channel_id))
+        const member = guild.members.cache.get(event.d.user_id)   
 
         if (event.d.emoji.name == '🎉') {
             if (queue.giveaway.has(event.d.message_id)) {
@@ -87,8 +89,19 @@ module.exports = async function onraw(event) {
             }
 
         } else if (this.config.channels.forum.open == event.d.channel_id) {
+            const message = await channel.messages.fetch(this.config.forum.messageId)
+            const userReactions = message.reactions.cache
             const rolesToMark = this.config.forum.rolesToMark
             const categoryId = this.config.forum.category
+
+            try {
+                for (const reaction of userReactions.values()) {
+                    await reaction.users.remove(member)
+                }
+            } catch (error) {
+                console.log(error)
+            }
+            await message.react(this.config.forum.emoji)
 
             if (queue.forum.has(member)) return member.send(new Discord.MessageEmbed()
                 .setDescription('Você já tem um forum aberto. Ele deve ser resolvido para que você possa abrir outro!'))
@@ -108,15 +121,21 @@ module.exports = async function onraw(event) {
             rolesToMark.forEach(id => {
                 text += `<@&${id}>\n`
             })
+            text += `${member.user}`
 
             const msg = await newChannel.send(text)
             msg.delete()
 
             const embed = new Discord.MessageEmbed()
                 .setColor(this.config.color)
-                .setAuthor(member.user.username, member.user.displayAvatarURL())
-                .setDescription(`**-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=++=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-**\n${member.user}\nDeixe sua dúvida abaixo que assim que possivel algum staff irá lhe responder!\n**-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=++=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-**`)
-                .setFooter(this.user.username, this.user.displayAvatarURL())
+                .setDescription(`
+                Olá **${member.user.username}**, obrigado por entrar em contato. Em breve algum staff irá lhe responder!
+                Para facilitar seu atendimento, por favor envie-nos as seguintes informações:\n
+                -Nick
+                -Descrição detalhada do seu problema
+                -Imagens/videos que ajudem a melhor identificar o erro
+                `)
+                .setFooter(guild.name, this.user.displayAvatarURL())
 
             const msgEmbed = await newChannel.send(embed)
 
@@ -144,11 +163,108 @@ module.exports = async function onraw(event) {
                 const tagResponse = this.channels.cache.get(this.config.channels.tags.response)
                 const role = guild.roles.cache.get(request.role.id)
                 tagResponse.send(new Discord.MessageEmbed()
-                    .setDescription(`${event.d.emoji.name} | ${memberRequest} a sua solicitação para o cargo ${role} foi ${accept ? 'aceito' : 'negado'} por ${member.user}`)
+                    .setDescription(`${event.d.emoji.name} | ${memberRequest} a sua solicitação para o cargo ${role} foi ${accept ? 'aceita' : 'negada'} por ${member.user}`)
                     .setTimestamp())
 
                 queue.requestRole.delete(match)
             }
+        } else if (this.config.channels.order.request == event.d.channel_id) {
+            const message = await channel.messages.fetch(this.config.orderrequest.messageId)
+            const userReactions = message.reactions.cache
+            try {
+                for (const reaction of userReactions.values()) {
+                    await reaction.users.remove(member)
+                }
+            } catch (error) {
+                console.log(error)
+            }
+            await message.react(this.config.orderrequest.emoji)
+
+            await member.createDM()
+            if (queue.cooldown.has(member.user.id))
+                return member.send(new Discord.MessageEmbed()
+                    .setDescription(`❌ | Você já tem um formulário de pedido aberto, finalize ele antes de iniciar outro!`))
+            queue.cooldown.add(member.user.id)
+            let orderDone = false
+            let orderTarget, paymentMethod, orderDescription
+            let orderEmbed = new Discord.MessageEmbed()
+            .setTitle("**NOVO PEDIDO**")
+            .setColor(this.config.color)
+            .setFooter(guild.name, this.user.displayAvatarURL())
+            let newOrderEmbed = new Discord.MessageEmbed()
+            .setTitle("**ETERYUN PEDIDOS - NOVO PEDIDO**")
+            .setColor(this.config.color)
+            .setFooter(guild.name, this.user.displayAvatarURL())
+
+            const orderTargetMessage = await member.send(newOrderEmbed.setDescription(`Por favor, selecione a área devida para seu pedido.\n
+            💻 - Developer
+            🎨 - Designer
+            🛠 - Builder`))
+            await orderTargetMessage.react('💻')
+            await orderTargetMessage.react('🎨')
+            await orderTargetMessage.react('⚒')
+            await orderTargetMessage.awaitReactions((reaction, user) => (reaction.emoji.name === '💻' || reaction.emoji.name === '🎨' || reaction.emoji.name === '⚒') && user.id === member.user.id, { time: 300000, max: 1 })
+                .then(collected => {
+                    const emojis = this.config.orderrequest.roles
+                    emojis.forEach(async item => {
+                        if (collected.first().emoji.name === item.emoji) {
+                            orderTarget = item.id
+                        }
+                    })
+                    orderEmbed.setDescription(`**Área:** <@&${orderTarget}>`)
+                }).catch(error => {
+                    console.log(error)
+                    queue.cooldown.delete(member.user.id)
+                    member.send(new Discord.MessageEmbed()
+                    .setDescription(`❌ | Seu tempo para solicitar fazer um pedido expirou, reaja novamente para refazer seu pedido!`))
+                })
+
+            const orderPaymentMessage = await member.send(newOrderEmbed.setDescription(`Por favor, informe o(s) método(s) de pagamento para seu pedido em uma única mensagem.`))
+            await orderPaymentMessage.channel.awaitMessages((message) => message.author.id === member.user.id, { time: 300000, max: 1 })
+                .then(collected => {
+                    paymentMethod = collected.first().content
+                    orderEmbed.setDescription(orderEmbed.description += `
+                    **Método(s) de Pagamento:** ${paymentMethod}`)
+                }).catch(error => {
+                    console.log(error)
+                    queue.cooldown.delete(member.user.id)
+                    member.send(new Discord.MessageEmbed()
+                    .setDescription(`❌ | Seu tempo para solicitar fazer um pedido expirou, reaja novamente para refazer seu pedido!`))
+                })
+
+            const orderDescriptionMessage = await member.send(newOrderEmbed.setDescription(`Por favor, informe os detalhes do seu pedido em uma única mensagem.`))
+            await orderDescriptionMessage.channel.awaitMessages((message) => message.author.id === member.user.id, { time: 300000, max: 1 })
+                .then(collected => {
+                    orderDescription = collected.first().content
+                    orderEmbed.setDescription(orderEmbed.description += `
+                    **Descrição do pedido:** ${orderDescription}
+                    **Pedido por:** ${member.user}`)
+                }).catch(error => {
+                    console.log(error)
+                    queue.cooldown.delete(member.user.id)
+                    member.send(new Discord.MessageEmbed()
+                    .setDescription(`❌ | Seu tempo para solicitar fazer um pedido expirou, reaja novamente para refazer seu pedido!`))
+                })
+                
+            let orderChannel = this.channels.cache.get(this.config.channels.order.orders)
+            await orderChannel.send(orderEmbed.setTimestamp())
+                .then(() => {
+                    orderDone = true
+                    queue.cooldown.delete(member.user.id)
+                })
+            const msg = await orderChannel.send(`<@&${orderTarget}>`)
+            msg.delete()
+            member.send(new Discord.MessageEmbed()
+            .setColor(this.config.color)
+            .setDescription(`✅ | Seu pedido foi enviado com sucesso, um dos nossos membros verificados entrará em contato com você em breve!`))
+
+            setTimeout(async () => {
+                if (orderDone == false) {
+                    queue.cooldown.delete(member.user.id)
+                    member.send(new Discord.MessageEmbed()
+                    .setDescription(`❌ | Seu tempo para solicitar fazer um pedido expirou, reaja novamente para refazer seu pedido!`))
+                }
+            }, 300000)
         }
 
         if (this.config.channels.tags.request == event.d.channel_id) {
@@ -189,7 +305,7 @@ module.exports = async function onraw(event) {
             queue.cooldown.add(member.user.id)
 
             const messageSended = await member.send(new Discord.MessageEmbed()
-                .setDescription(`Olá, ${member.user.username}.\n\nNos envie seu portfólio para que o possamos avaliar enquanto ${role.name}.`)
+                .setDescription(`Olá, ${member.user.username}.\n\nNos envie seu portifólio para que o possamos avaliar enquanto ${role.name}.`)
                 .setFooter(`Atenciosamente, Equipe do ${guild.name}`)
                 .setColor('RANDOM'))
 
@@ -202,8 +318,8 @@ module.exports = async function onraw(event) {
                 let portfolio = p.content
                 let channelAdmin = this.channels.cache.get(this.config.channels.tags.admin)
                 let messageAdmin = await channelAdmin.send(new Discord.MessageEmbed()
-                    .setTitle(`NOVA SOLICITAÇÃO DE TAG`)
-                    .setDescription(`A tag ${role.name} foi solicitada por um usuário.\n\nUsuário: ${member.user}\n\nPortefólio: ${portfolio}`)
+                    .setTitle(`**NOVA SOLICITAÇÃO DE TAG**`)
+                    .setDescription(`A tag ${role.name} foi solicitada por um usuário.\nUsuário: ${member.user}\n\nPortifólio: ${portfolio}`)
                     .setTimestamp())
 
                 await messageAdmin.react('✅').then(async () => {
@@ -218,7 +334,7 @@ module.exports = async function onraw(event) {
                 }
 
                 messageSended.edit(new Discord.MessageEmbed()
-                    .setDescription(`❌ | Opa, parece que o tempo para enviar o portefólio acabou reaja novamente!`))
+                    .setDescription(`❌ | Opa, parece que o tempo para enviar o portifólio acabou, reaja novamente!`))
             }, 120000)
         }
     }
