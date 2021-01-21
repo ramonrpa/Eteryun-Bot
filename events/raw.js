@@ -8,13 +8,13 @@ module.exports = async function onraw(event) {
 
         if (event.d.user_id == this.user.id)
             return
-        
-        const channel = this.channels.cache.get(event.d.channel_id)    
+
+        const channel = this.channels.cache.get(event.d.channel_id)
         if (channel.type == "dm")
             return
 
         const guild = this.guilds.cache.get(event.d.guild_id)
-        const member = guild.members.cache.get(event.d.user_id)   
+        const member = guild.members.cache.get(event.d.user_id)
 
         if (event.d.emoji.name == '🎉') {
             if (queue.giveaway.has(event.d.message_id)) {
@@ -149,7 +149,7 @@ module.exports = async function onraw(event) {
             let match = message.embeds[0].description.match(/Usuário: <(?:[^\d>]+|:[A-Za-z0-9]+:)\w+>/g)[0]
             match = match.replace('Usuário: <@', '').replace('>', '')
             const memberRequest = guild.members.cache.get(match)
-            
+
             let request = queue.requestRole.get(match)
 
             if (request) {
@@ -185,89 +185,65 @@ module.exports = async function onraw(event) {
                 return member.send(new Discord.MessageEmbed()
                     .setDescription(`❌ | Você já tem um formulário de pedido aberto, finalize ele antes de iniciar outro!`))
             queue.cooldown.add(member.user.id)
-            let orderDone = false
-            let orderTarget, paymentMethod, orderDescription
-            let orderEmbed = new Discord.MessageEmbed()
-            .setTitle("**NOVO PEDIDO**")
-            .setColor(this.config.color)
-            .setFooter(guild.name, this.user.displayAvatarURL())
-            let newOrderEmbed = new Discord.MessageEmbed()
-            .setTitle("**ETERYUN PEDIDOS - NOVO PEDIDO**")
-            .setColor(this.config.color)
-            .setFooter(guild.name, this.user.displayAvatarURL())
 
-            const orderTargetMessage = await member.send(newOrderEmbed.setDescription(`Por favor, selecione a área devida para seu pedido.\n
-            💻 - Developer
-            🎨 - Designer
-            🛠 - Builder`))
-            await orderTargetMessage.react('💻')
-            await orderTargetMessage.react('🎨')
-            await orderTargetMessage.react('⚒')
-            await orderTargetMessage.awaitReactions((reaction, user) => (reaction.emoji.name === '💻' || reaction.emoji.name === '🎨' || reaction.emoji.name === '⚒') && user.id === member.user.id, { time: 300000, max: 1 })
-                .then(collected => {
-                    const emojis = this.config.orderrequest.roles
-                    emojis.forEach(async item => {
-                        if (collected.first().emoji.name === item.emoji) {
-                            orderTarget = item.id
-                        }
-                    })
-                    orderEmbed.setDescription(`**Área:** <@&${orderTarget}>`)
-                }).catch(error => {
-                    console.log(error)
-                    queue.cooldown.delete(member.user.id)
-                    member.send(new Discord.MessageEmbed()
+            let timeout = setTimeout(async () => {
+                queue.cooldown.delete(member.user.id)
+                member.send(new Discord.MessageEmbed()
                     .setDescription(`❌ | Seu tempo para solicitar fazer um pedido expirou, reaja novamente para refazer seu pedido!`))
-                })
-
-            const orderPaymentMessage = await member.send(newOrderEmbed.setDescription(`Por favor, informe o(s) método(s) de pagamento para seu pedido em uma única mensagem.`))
-            await orderPaymentMessage.channel.awaitMessages((message) => message.author.id === member.user.id, { time: 300000, max: 1 })
-                .then(collected => {
-                    paymentMethod = collected.first().content
-                    orderEmbed.setDescription(orderEmbed.description += `
-                    **Método(s) de Pagamento:** ${paymentMethod}`)
-                }).catch(error => {
-                    console.log(error)
-                    queue.cooldown.delete(member.user.id)
-                    member.send(new Discord.MessageEmbed()
-                    .setDescription(`❌ | Seu tempo para solicitar fazer um pedido expirou, reaja novamente para refazer seu pedido!`))
-                })
-
-            const orderDescriptionMessage = await member.send(newOrderEmbed.setDescription(`Por favor, informe os detalhes do seu pedido em uma única mensagem.`))
-            await orderDescriptionMessage.channel.awaitMessages((message) => message.author.id === member.user.id, { time: 300000, max: 1 })
-                .then(collected => {
-                    orderDescription = collected.first().content
-                    orderEmbed.setDescription(orderEmbed.description += `
-                    **Descrição do pedido:** ${orderDescription}
-                    **Pedido por:** ${member.user}`)
-                }).catch(error => {
-                    console.log(error)
-                    queue.cooldown.delete(member.user.id)
-                    member.send(new Discord.MessageEmbed()
-                    .setDescription(`❌ | Seu tempo para solicitar fazer um pedido expirou, reaja novamente para refazer seu pedido!`))
-                })
-                
-            let orderChannel = this.channels.cache.get(this.config.channels.order.orders)
-            await orderChannel.send(orderEmbed.setTimestamp())
-                .then(() => {
-                    orderDone = true
-                    queue.cooldown.delete(member.user.id)
-                })
-            const msg = await orderChannel.send(`<@&${orderTarget}>`)
-            msg.delete()
-            member.send(new Discord.MessageEmbed()
-            .setColor(this.config.color)
-            .setDescription(`✅ | Seu pedido foi enviado com sucesso, um dos nossos membros verificados entrará em contato com você em breve!`))
-
-            setTimeout(async () => {
-                if (orderDone == false) {
-                    queue.cooldown.delete(member.user.id)
-                    member.send(new Discord.MessageEmbed()
-                    .setDescription(`❌ | Seu tempo para solicitar fazer um pedido expirou, reaja novamente para refazer seu pedido!`))
-                }
             }, 300000)
-        }
 
-        if (this.config.channels.tags.request == event.d.channel_id) {
+            let orderTarget, paymentMethod, orderDescription, embedDescription
+            const emojis = this.config.orderrequest.roles
+            let orderEmbed = new Discord.MessageEmbed()
+                .setTitle('**NOVO PEDIDO**')
+                .setColor(this.config.color)
+                .setFooter(guild.name, this.user.displayAvatarURL())
+            embedDescription = 'Por favor, selecione a área devida para seu pedido.'
+
+            emojis.forEach(role => {
+                embedDescription += `\n${role.name}`
+            })
+
+            const orderTargetMessage = await member.send(
+                orderEmbed.setDescription(embedDescription))
+
+            emojis.forEach(async role => {
+                await orderTargetMessage.react(role.emoji.id ? role.emoji.id : role.emoji.name)
+            })
+
+            try {
+                let collected = await orderTargetMessage.awaitReactions((reaction, user) => emojis.filter(item => item.emoji.name === reaction.emoji.name).length > 0 && user.id === member.user.id, { time: 300000, max: 1 })
+
+                let filtred = emojis.find(role => collected.first().emoji.name == role.emoji.name)
+                orderTarget = filtred.id
+                embedDescription = `**Área:** <@&${orderTarget}>`
+
+                const orderPaymentMessage = await member.send(orderEmbed.setDescription(`Por favor, informe o(s) método(s) de pagamento para seu pedido em uma única mensagem.`))
+                collected = await orderPaymentMessage.channel.awaitMessages((message) => message.author.id === member.user.id, { time: 300000, max: 1 })
+                paymentMethod = collected.first().content
+                embedDescription += `\n**Método(s) de Pagamento:** ${paymentMethod}`
+
+                const orderDescriptionMessage = await member.send(orderEmbed.setDescription(`Por favor, informe os detalhes do seu pedido em uma única mensagem.`))
+                collected = await orderDescriptionMessage.channel.awaitMessages((message) => message.author.id === member.user.id, { time: 300000, max: 1 })
+                orderDescription = collected.first().content
+                embedDescription += `\n**Descrição do pedido:** ${orderDescription}\n**Pedido por:** ${member.user}`
+
+                orderEmbed.setDescription(embedDescription)
+                let orderChannel = this.channels.cache.get(this.config.channels.order.orders)
+                await orderChannel.send(orderEmbed.setTimestamp())
+                queue.cooldown.delete(member.user.id)
+                const msg = await orderChannel.send(`<@&${orderTarget}>`)
+                msg.delete()
+                member.send(orderEmbed.setDescription(`✅ | Seu pedido foi enviado com sucesso, um dos nossos membros verificados entrará em contato com você em breve!`))
+                clearTimeout(timeout)
+            } catch (error) {
+                console.log(error)
+                queue.cooldown.delete(member.user.id)
+                member.send(new Discord.MessageEmbed()
+                    .setDescription(`❌ | Seu tempo para solicitar fazer um pedido expirou, reaja novamente para refazer seu pedido!`))
+            }
+
+        } if (this.config.channels.tags.request == event.d.channel_id) {
             const message = await channel.messages.fetch(this.config.tagsrequest.messageId)
             const userReactions = message.reactions.cache.filter(r => r.users.cache.has(event.d.user_id))
 
@@ -285,12 +261,12 @@ module.exports = async function onraw(event) {
             let role = ''
 
             emojis.forEach(async item => {
-                if (event.d.emoji.name == item.emoji) {
+                if (event.d.emoji.name == item.emoji.name) {
                     if (member.roles.cache.find(r => r.id == item.id))
                         isHave = true
                     role = item
                 }
-                await message.react(item.emoji)
+                await message.react(item.emoji.id ? item.emoji.id : item.emoji.name)
             })
 
             await member.createDM()
@@ -309,12 +285,17 @@ module.exports = async function onraw(event) {
                 .setFooter(`Atenciosamente, Equipe do ${guild.name}`)
                 .setColor('RANDOM'))
 
+            let timeout = setTimeout(async () => {
+                queue.cooldown.delete(member.user.id)
+                messageSended.edit(new Discord.MessageEmbed()
+                    .setDescription(`❌ | Opa, parece que o tempo para enviar o portifólio acabou, reaja novamente!`))
+            }, 120000)
+
             let messageCollector = messageSended.channel.createMessageCollector((message) => message.author.id === member.user.id, { time: 120000, max: 1 })
-            let coleted = false
 
             messageCollector.on('collect', async p => {
-                coleted = true
                 queue.cooldown.delete(member.user.id)
+                clearTimeout(timeout)
                 let portfolio = p.content
                 let channelAdmin = this.channels.cache.get(this.config.channels.tags.admin)
                 let messageAdmin = await channelAdmin.send(new Discord.MessageEmbed()
@@ -328,14 +309,6 @@ module.exports = async function onraw(event) {
 
                 queue.requestRole.set(member.user.id, { role: role, message: messageAdmin })
             })
-            setTimeout(async () => {
-                if (coleted === false) {
-                    queue.cooldown.delete(member.user.id)
-                }
-
-                messageSended.edit(new Discord.MessageEmbed()
-                    .setDescription(`❌ | Opa, parece que o tempo para enviar o portifólio acabou, reaja novamente!`))
-            }, 120000)
         }
     }
 }

@@ -73,7 +73,7 @@ class Command {
   async _run(message, args, content) {
     if (!message.guild && this.guildOnly) return
 
-    if (message.channel.id !== this.client.config.channels.commands) {
+    if ((this.category !== 'Música' && message.channel.id !== this.client.config.channels.commands) || (this.category === 'Música' && message.channel.id !== this.client.config.channels.music)) {
       if (!message.channel.permissionsFor(message.member).has('ADMINISTRATOR')) {
         return message.delete()
       }

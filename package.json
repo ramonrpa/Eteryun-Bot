@@ -19,7 +19,7 @@
     "minecraft-items": "^0.4.3",
     "moment": "^2.27.0",
     "moment-timezone": "^0.5.31",
-    "nodemon": "^2.0.4",
+    "nodemon": "^2.0.7",
     "simple-youtube-api": "^5.2.1",
     "ytdl-core": "^4.1.0"
   }
