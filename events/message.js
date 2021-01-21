@@ -9,8 +9,9 @@ module.exports = async function onMessage(message) {
     return await message.react('❌')
   }
 
-  if (message.channel.type === "dm") return
-  if (!message.member.hasPermission("ADMINISTRATOR") && (message.content.includes('discord.gg/' || 'discordapp.com/invite/' || 'discord.me'))) return message.delete()
+  if (message.channel.type != "dm") {
+    if (!message.member.hasPermission("ADMINISTRATOR") && (message.content.includes('discord.gg/' || 'discordapp.com/invite/' || 'discord.me'))) return message.delete()
+  }
   if (!prefix || message.author.bot) return
 
   const args = message.content.slice(prefix.length).trim().split(/ +/g)
