@@ -19,7 +19,7 @@ class Recipe extends Command {
         this.requiredArgs = true
         this.category = 'Diversão'
         this.description = 'Ver craft de um item'
-        this.usage = 'item'
+        this.usage = ['item']
     }
 
     getMoreLike(string, array) {
